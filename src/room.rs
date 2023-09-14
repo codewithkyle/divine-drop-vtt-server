@@ -1,22 +1,28 @@
 use std::net::SocketAddr;
 use tokio::sync::broadcast;
-use std::error::Error;
-
-use crate::client::Client;
 
 pub struct Room {
     pub tx: broadcast::Sender<(String, SocketAddr)>,
+    pub clients: Vec<SocketAddr>,
 }
 
 impl Room {
     pub fn new() -> Self {
         Room {
-            tx: broadcast::channel(8).0
+            tx: broadcast::channel(8).0,
+            clients: Vec::new(),
         }
     }
 
-    pub async fn join_broadcast(&self, client: &mut Client) -> Result<(), Box<dyn Error>> {
-        client.join_broadcast(self.tx.clone()).await?;
-        return Ok(());
+    pub fn get_broadcast(&self) -> broadcast::Sender<(String, SocketAddr)> {
+        return self.tx.clone();
+    }
+
+    pub fn add_client(&mut self, addr: SocketAddr) {
+        self.clients.push(addr);
+    }
+
+    pub fn remove_client(&mut self, addr: SocketAddr) {
+        self.clients.retain(|&x| x != addr);
     }
 }

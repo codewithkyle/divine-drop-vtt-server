@@ -7,9 +7,11 @@ use crate::room::Room;
 
 pub struct Client {
     socket: TcpStream,
-    addr: SocketAddr,
-    room_code: String,
+    pub addr: SocketAddr,
+    pub room_code: String,
     rooms: Arc<Mutex<HashMap<String, Room>>>,
+    tx: broadcast::Sender<(String, SocketAddr)>,
+    rx: broadcast::Receiver<(String, SocketAddr)>,
 }
 
 impl Client {
@@ -19,6 +21,8 @@ impl Client {
             addr,
             room_code: "".to_string(),
             rooms: Arc::new(Mutex::new(HashMap::new())),
+            tx: broadcast::channel(8).0,
+            rx: broadcast::channel(8).1,
         }
     } 
 
@@ -31,14 +35,20 @@ impl Client {
         return Ok(line.trim().to_string());
     }
 
-    pub fn join_room(&mut self, room_code: String, rooms: Arc<Mutex<HashMap<String, Room>>>) {
-        self.room_code = room_code;
+    pub fn join_room(&mut self, rooms: Arc<Mutex<HashMap<String, Room>>>) {
         self.rooms = rooms;
     }
 
-    pub async fn join_broadcast(&mut self, tx: broadcast::Sender<(String, SocketAddr)>) -> Result<(), Box<dyn Error>> {
-        let mut rx = tx.subscribe();
+    pub fn set_room_code(&mut self, room_code: String) {
+        self.room_code = room_code;
+    }
 
+    pub fn join_broadcast(&mut self, tx: broadcast::Sender<(String, SocketAddr)>) {
+        self.rx = tx.subscribe();
+        self.tx = tx;
+    }
+
+    pub async fn listen(&mut self) -> Result<(), Box<dyn Error>> {
         let (reader, mut writer) = self.socket.split();
 
         let mut reader = BufReader::new(reader);
@@ -50,11 +60,12 @@ impl Client {
                     if result? == 0 {
                         break;
                     }
-                    tx.send((line.clone(), self.addr))?;
+                    line = line.trim().to_string();
+                    self.tx.send((line.clone(), self.addr))?;
                     println!("{} sent {}", self.addr, line);
                     line.clear();
                 },
-                result = rx.recv() => {
+                result = self.rx.recv() => {
                     let (msg, other_addr) = result?;
                     if self.addr != other_addr {
                         writer.write_all(msg.as_bytes()).await?;
@@ -62,7 +73,6 @@ impl Client {
                 }
             }
         }
-
         return Ok(());
     }
 }
