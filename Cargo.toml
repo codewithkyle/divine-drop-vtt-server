@@ -9,3 +9,6 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 async-tungstenite = "0.16"
 rand = "0.8"
+sha1 = "0.10"
+base64 = "0.12"
+rust-crypto = "0.2"

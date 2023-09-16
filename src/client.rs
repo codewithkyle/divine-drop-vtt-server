@@ -31,7 +31,18 @@ impl Client {
         let mut reader = BufReader::new(reader);
 
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
+        loop {
+            println!("{} waiting for room type", self.addr);
+            reader.read_line(&mut line).await?;
+            if !line.trim().is_empty() {
+                println!("{} sent {}", self.addr, line);
+            }
+            if line.trim().starts_with("dd::core::") {
+                break;
+            }
+            line.clear();
+        }
+
         return Ok(line.trim().to_string());
     }
 
